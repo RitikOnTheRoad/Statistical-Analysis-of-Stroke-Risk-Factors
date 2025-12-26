@@ -36,8 +36,7 @@ data=data %>%
     smoking_status=replace(smoking_status,smoking_status=="Unknown",NA), #labeling unknown smoking status as NA
     smoking_status=factor(
       smoking_status,
-      levels=c('never smoked',"formerly smoked","smokes"),
-      ordered=TRUE
+      levels=c('never smoked',"formerly smoked","smokes")
     ),
     work_type=as.factor(work_type),
     age10=floor(age/10),
@@ -74,7 +73,7 @@ tidy(lr_base)
 y_hat=predict(lr_base,test_data,type="response")
 y_hat=as.factor(ifelse(y_hat>0.3,1,0))
 
-#library(caret)
+library(caret)
 cm=confusionMatrix(data=y_hat,reference=test_data$stroke)
 cm
 
@@ -85,13 +84,49 @@ n1=length(train_data$stroke)-n0
 w0=n1/(n0+n1)
 w1=n0/(n0+n1)
 
-lr_weighted=glm(stroke~.,data=data,family="binomial",weights = ifelse(data$stroke==1,w1,w0))
+lr_weighted=glm(stroke~.,data=train_data,family="binomial",weights = ifelse(train_data$stroke==1,w1,w0))
 tidy(lr_weighted)
 y_hat=predict(lr_weighted,test_data,type="response")
-y_hat=as.factor(ifelse(y_hat>0.6,1,0))
+y_hat=as.factor(ifelse(y_hat>0.55,1,0))
 cm=confusionMatrix(data=y_hat,reference=test_data$stroke)
 cm
 
 #drop or fix work type
 
-#EDA
+df_no_work=data[,-5]
+data_split=initial_split(df_no_work,0.75)
+train=training(data_split)
+test=training(data_split)
+
+lr_no_work=glm(stroke~.,family="binomial",data=train,weights=ifelse(train$stroke==1,w1,w0))
+tidy(lr_no_work)
+
+prediction=predict(lr_no_work,test,type="response")
+prediction=as.factor(ifelse(prediction>0.5,1,0))
+
+
+cm=confusionMatrix(data=prediction,reference=test$stroke)
+cm$byClass
+cm$table
+
+#recall precision curve for class 1
+recall=c()
+precision=c()
+for(i in seq(0,1,0.1)){
+  prediction=predict(lr_no_work,test,type="response")
+  prediction=as.factor(ifelse(prediction>i,1,0))
+  
+  cm=confusionMatrix(data=prediction,reference=test$stroke)
+  
+  recall=c(recall,cm$table[2,2]/(cm$table[2,2]+cm$table[1,2]))
+  precision=c(precision,cm$table[2,2]/(cm$table[2,2]+cm$table[2,1]))
+}
+
+
+ggplot(data=data.frame(recall,precision),aes(x=recall,y=precision,marker=TRUE))+geom_line(col="red",lwd=2)+geom_point(col="blue",cex=2)+
+  labs(title="Precision recall curve")
+
+#Precison is lowwwwww
+
+
+
